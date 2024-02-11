@@ -34,10 +34,10 @@ class MQTTMediator: public IMQTTMediator,public AsyncMqttClient
 private:
     std::forward_list<tuplecontainer> _clients;
     uint32_t _lastPacketIdCleaning;
-
+    bool _bootednow=true;//if true ask clients to resubscribe ->_mediatorOnConnect send sessionpresent false
     bool _isClientExist(IMClient* client, const tuplecontainer& it);
     bool _isTopicAdded(String topic_old,String topic_new);
-    uint8_t _packetidCleaner(uint32_t cleanolderthan = 5000UL);
+    uint8_t _packetidCleaner(uint32_t cleanolderthan = 30000UL);
     int _mosquitto_topic_matches_sub(const char* sub, const char* topic, bool* result);
     
     std::forward_list<tuplecontainer>::iterator _findClientbyPtr(IMClient* client);

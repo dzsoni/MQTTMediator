@@ -218,7 +218,7 @@ uint8_t MQTTMediator::_packetidCleaner(uint32_t cleanolderthan)
             }
         }
     }
-    _MQTTMEDI_PL(String(count) + String(" packetID cleared."));
+    _MQTTMEDI_PL(String(__FUNCTION__)+String(count) + String(" packetID cleared."));
     return count;
 }
 
@@ -259,9 +259,11 @@ MQTTMediator::MQTTMediator()
 
 void MQTTMediator::_mediatorOnConnect(bool sessionpresent)
 {
+    bool sp=sessionpresent;
+    if (_bootednow)sp=false;//force resubscribe clients
     if (_mediatoronconnectcb)
     {
-        std::invoke(_mediatoronconnectcb, sessionpresent);
+        std::invoke(_mediatoronconnectcb, sp);
     }
     if(!_mediatoronconnectexclusively)
     {
@@ -269,10 +271,11 @@ void MQTTMediator::_mediatorOnConnect(bool sessionpresent)
         {
             if (std::get<ENUM_USERCBS_ST>(*it).onConnectucb)
             {
-                std::invoke(std::get<ENUM_USERCBS_ST>(*it).onConnectucb, sessionpresent);
+                std::invoke(std::get<ENUM_USERCBS_ST>(*it).onConnectucb, sp);
             }
         }
     }
+    _bootednow=false;
 }
 
 void MQTTMediator::_mediatorOnDisconnect(AsyncMqttClientDisconnectReason reason)
@@ -301,7 +304,7 @@ void MQTTMediator::_mediatorOnSubscribe(uint16_t packetId, uint8_t qos)
             {   
                 if (std::get<ENUM_USERCBS_ST>(*it).onSubscribeucb)
                 {
-                    _MQTTMEDI_PL("_mediatorOnSubscribe packetid match: " + String(packetId));
+                    _MQTTMEDI_PL(String(__FUNCTION__)+":packetid match: " + String(packetId));
                     std::invoke(std::get<ENUM_USERCBS_ST>(*it).onSubscribeucb, packetId, qos);
                     std::get<ENUM_PACKETID_V>(*it).erase(it2);
                     return;
@@ -347,7 +350,7 @@ void MQTTMediator::_mediatorOnMessage(char *topic, char *payload, AsyncMqttClien
             }
             else
             {
-                _MQTTMEDI_PL(F("Invalid subscripton or topic"));
+                _MQTTMEDI_PL(String(__FUNCTION__)+":Invalid subscripton or topic");
             }
         }
     }
@@ -497,11 +500,10 @@ uint16_t MQTTMediator::subscribe(IMClient *client, const String topic, uint8_t q
                                 [&, this](String existing_topic)
                                 { return this->_isTopicAdded(existing_topic, topic); });
 
-        if (it2 != std::get<ENUM_TOPIC_V>(*it).end())
-            return 0; // already added
+        if (it2 == std::get<ENUM_TOPIC_V>(*it).end())
         std::get<ENUM_TOPIC_V>(*it).emplace_back(topic);
     }
-    uint16_t packet_id = AsyncMqttClient::subscribe(topic.c_str(), qos);
+    uint16_t packet_id = AsyncMqttClient::subscribe(topic.c_str(), qos); //subscribe or resubcribe with qos
     if (packet_id)
         std::get<ENUM_PACKETID_V>(*it).emplace_back(std::make_pair(packet_id, millis()));
     return packet_id;

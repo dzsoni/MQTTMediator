@@ -23,7 +23,7 @@ struct UserCBs
     AsyncMqttClientInternals::OnErrorUserCallback onErrorucb;
 };
 
-#define PACKETCLEANINGPERIOD 5000UL
+#define PACKETCLEANINGPERIOD 30000UL
  typedef   std::tuple<IMClient*,std::vector<String>,std::vector<std::pair<uint16_t,uint32_t>>,UserCBs> tuplecontainer;
 
 
