@@ -34,7 +34,7 @@ private:
     
     virtual bool _isClientExist(IMClient* client, const tuplecontainer& it)=0;
     virtual bool _isTopicAdded(String topic_old,String topic_new)=0;
-    virtual uint8_t _packetidCleaner(uint32_t cleanolderthan = 5000UL)=0;
+    virtual uint8_t _packetidCleaner(uint32_t cleanolderthan = 30000UL)=0;
     virtual int _mosquitto_topic_matches_sub(const char* sub, const char* topic, bool* result)=0;
     virtual std::forward_list<tuplecontainer>::iterator _findClientbyPtr(IMClient* client)=0;
     virtual std::forward_list<tuplecontainer>::iterator _addEmptyClientTuple(IMClient* client)=0;
@@ -52,6 +52,7 @@ public:
     IMQTTMediator(){};
     virtual ~IMQTTMediator(){};
 
+    
     virtual void vanishClient(IMClient* client)=0;
     virtual bool connected()=0;
     virtual uint16_t subscribe(IMClient* client, const String topic, uint8_t qos)=0;

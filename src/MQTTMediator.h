@@ -11,7 +11,7 @@
 #include "IMQTTMediator.h"
 #include <AsyncMqttClient.h>
 
-#define DEBUG_MQTTMEDI
+//#define DEBUG_MQTTMEDI
 
 #ifdef DEBUG_MQTTMEDI
 #define _MQTTMEDI_PP(a) Serial.print(a);

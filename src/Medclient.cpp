@@ -1,12 +1,12 @@
 #include "Medclient.h"
 
-MedClient::MedClient(IMQTTMediator* mymediator)
-{
-    _mymediator=mymediator;
-}
-
 MedClient::MedClient()
 {
+}
+
+MedClient::MedClient(IMQTTMediator *mymediator)
+{
+    if(mymediator!=nullptr)_mymediator=mymediator;
 }
 
 MedClient::~MedClient()
@@ -38,10 +38,12 @@ uint16_t MedClient::unsubscribe(String topic)
      return 0;
  }
 
-void MedClient::setMQTTMediator(IMQTTMediator* mediator)
-{
-    if(mediator!=nullptr) _mymediator=mediator;
-}
+ void MedClient::setMQTTMediator(IMQTTMediator *mediator)
+ {
+  if(mediator!=nullptr) _mymediator=mediator;
+ }
+
+
 
 void MedClient::setOnConnect(AsyncMqttClientInternals::OnConnectUserCallback callback) {
  if(_mymediator!=nullptr)

@@ -218,7 +218,7 @@ uint8_t MQTTMediator::_packetidCleaner(uint32_t cleanolderthan)
             }
         }
     }
-    _MQTTMEDI_PL(String(__FUNCTION__)+String(count) + String(" packetID cleared."));
+    _MQTTMEDI_PL(String(__FUNCTION__)+String(" ")+String(count) + String(" packetID cleared."));
     return count;
 }
 
@@ -233,8 +233,7 @@ uint16_t MQTTMediator::publish(IMClient *client, const char *topic, uint8_t qos,
         it = _addEmptyClientTuple(client);
     }
     uint16_t paketid = AsyncMqttClient::publish(topic, qos, retain, payload, length, dup, message_id);
-    if (paketid && qos)
-        std::get<ENUM_PACKETID_V>(*it).emplace_back(std::make_pair(paketid, millis()));
+    if (qos) std::get<ENUM_PACKETID_V>(*it).emplace_back(std::make_pair(paketid, millis()));
     return paketid;
 }
 
@@ -302,13 +301,13 @@ void MQTTMediator::_mediatorOnSubscribe(uint16_t packetId, uint8_t qos)
         {
             if (it2->first == packetId)
             {   
+                _MQTTMEDI_PL(String(__FUNCTION__)+":packetid match: " + String(packetId));
                 if (std::get<ENUM_USERCBS_ST>(*it).onSubscribeucb)
                 {
-                    _MQTTMEDI_PL(String(__FUNCTION__)+":packetid match: " + String(packetId));
                     std::invoke(std::get<ENUM_USERCBS_ST>(*it).onSubscribeucb, packetId, qos);
-                    std::get<ENUM_PACKETID_V>(*it).erase(it2);
-                    return;
                 }
+                std::get<ENUM_PACKETID_V>(*it).erase(it2);
+                return;
             }
         }
     }
@@ -325,9 +324,9 @@ void MQTTMediator::_mediatorOnUnsubscribe(uint16_t packetId)
                 if (std::get<ENUM_USERCBS_ST>(*it).onUnsubscribeucb)
                 {
                     std::invoke(std::get<ENUM_USERCBS_ST>(*it).onUnsubscribeucb, packetId);
-                    std::get<ENUM_PACKETID_V>(*it).erase(it2);
-                    return;
                 }
+                std::get<ENUM_PACKETID_V>(*it).erase(it2);
+                return;
             }
         }
     }
@@ -369,9 +368,9 @@ void MQTTMediator::_mediatorOnPublish(uint16_t packetId)
                 if (std::get<ENUM_USERCBS_ST>(*it).onPublishucb)
                 {
                     std::invoke(std::get<ENUM_USERCBS_ST>(*it).onPublishucb, packetId);
-                    std::get<ENUM_PACKETID_V>(*it).erase(it2);
-                    return;
                 }
+                std::get<ENUM_PACKETID_V>(*it).erase(it2);
+                return;
             }
         }
     }
@@ -504,7 +503,7 @@ uint16_t MQTTMediator::subscribe(IMClient *client, const String topic, uint8_t q
         std::get<ENUM_TOPIC_V>(*it).emplace_back(topic);
     }
     uint16_t packet_id = AsyncMqttClient::subscribe(topic.c_str(), qos); //subscribe or resubcribe with qos
-    if (packet_id)
+    if (packet_id && qos>0)
         std::get<ENUM_PACKETID_V>(*it).emplace_back(std::make_pair(packet_id, millis()));
     return packet_id;
 }
