@@ -34,7 +34,6 @@ class MQTTMediator: public IMQTTMediator,public AsyncMqttClient
 private:
     std::forward_list<tuplecontainer> _clients;
     uint32_t _lastPacketIdCleaning;
-    bool _bootednow=true;//if true ask clients to resubscribe ->_mediatorOnConnect send sessionpresent false
     bool _isClientExist(IMClient* client, const tuplecontainer& it);
     bool _isTopicAdded(String topic_old,String topic_new);
     uint8_t _packetidCleaner(uint32_t cleanolderthan = 30000UL);
@@ -81,4 +80,4 @@ public:
     void setOnPublishClientCB(IMClient* client,  AsyncMqttClientInternals::OnPublishUserCallback callback);
     void setOnErrorClientCB(IMClient* client, AsyncMqttClientInternals::OnErrorUserCallback callback);
 };
-#endif
+#endif /* MQTTMEDIATOR_H */

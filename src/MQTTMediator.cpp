@@ -163,6 +163,15 @@ int MQTTMediator::_mosquitto_topic_matches_sub(const char *sub, const char *topi
     return MOSQ_ERR_SUCCESS;
 }
 
+/**
+ * Check if the client exists in the MQTT mediator.
+ *
+ * @param client Pointer to the IMClient to check for existence
+ * @param it Const reference to the tuplecontainer
+ *
+ * @return true if the client exists, false otherwise
+ *
+ */
 bool MQTTMediator::_isClientExist(IMClient *client, const tuplecontainer &it)
 {
     if (std::get<ENUM_MCLIENT_PTR>(it) == client)
@@ -177,6 +186,13 @@ bool MQTTMediator::_isTopicAdded(String topic_existing, String topic_new)
     return false;
 }
 
+/**
+ * Finds a client in the list by matching the IMClient pointer.
+ *
+ * @param client Pointer to the IMClient to find
+ *
+ * @return Iterator to the found client or end if not found
+ */
 std::forward_list<tuplecontainer>::iterator MQTTMediator::_findClientbyPtr(IMClient *client)
 {
     if (client == nullptr)
@@ -194,9 +210,16 @@ std::forward_list<tuplecontainer>::iterator MQTTMediator::_findClientbyPtr(IMCli
     return it;
 }
 
+/**
+ * Adds an empty client tuple to the list with the given IMClient pointer.
+ *
+ * @param client Pointer to the IMClient object.
+ *
+ * @return Iterator to the newly added client tuple.
+ */
 std::forward_list<tuplecontainer>::iterator MQTTMediator::_addEmptyClientTuple(IMClient* client)
 {
-    _clients.emplace_front(std::make_tuple(client, std::vector<String>{}, std::vector<std::pair<uint16_t, uint32_t>>(), UserCBs{}));
+    _clients.emplace_front(std::make_tuple(client, std::vector<TopicContainer>{}, std::vector<std::pair<uint16_t, uint32_t>>(), UserCBs{}));
     return  _clients.begin();
 }
 
@@ -259,24 +282,44 @@ MQTTMediator::MQTTMediator()
 void MQTTMediator::_mediatorOnConnect(bool sessionpresent)
 {
     bool sp=sessionpresent;
-    if (_bootednow)sp=false;//force resubscribe clients
     if (_mediatoronconnectcb)
     {
         std::invoke(_mediatoronconnectcb, sp);
     }
-    if(!_mediatoronconnectexclusively)
+
+    if ((!_mediatoronconnectexclusively))
     {
-        for (auto it = _clients.begin(); it != _clients.end(); it++)
+         for (auto it = _clients.begin(); it != _clients.end(); it++)
         {
             if (std::get<ENUM_USERCBS_ST>(*it).onConnectucb)
             {
-                std::invoke(std::get<ENUM_USERCBS_ST>(*it).onConnectucb, sp);
+                std::invoke(std::get<ENUM_USERCBS_ST>(*it).onConnectucb, sessionpresent);
             }
         }
     }
-    _bootednow=false;
+    else if (_mediatoronconnectexclusively && !sessionpresent)
+    {
+        for (auto it = _clients.begin(); it != _clients.end(); it++)
+        {
+            for (auto it2 = std::get<ENUM_TOPIC_V>(*it).begin(); it2 != std::get<ENUM_TOPIC_V>(*it).end(); it2++)
+            {
+                _MQTTMEDI_PL(String(__FUNCTION__) + "subscribe: " + it2->topic + " qos: " + it2->qos);
+               uint16_t packet_id = AsyncMqttClient::subscribe(it2->topic.c_str(), it2->qos); // subscribe or resubcribe with qos
+                if (packet_id && it2->qos > 0)
+                std::get<ENUM_PACKETID_V>(*it).emplace_back(std::make_pair(packet_id, millis()));
+            }
+        }
+    }
 }
 
+/**
+ * Handles the disconnection event of the Mediator.
+ *
+ * @param reason the reason for the disconnection
+ *
+ * @return None.
+ *
+ */
 void MQTTMediator::_mediatorOnDisconnect(AsyncMqttClientDisconnectReason reason)
 {
     if (_mediatorondisconnectcb)
@@ -339,7 +382,7 @@ void MQTTMediator::_mediatorOnMessage(char *topic, char *payload, AsyncMqttClien
         bool match;
         for (auto it2 = std::get<ENUM_TOPIC_V>(*it).begin(); it2 != std::get<ENUM_TOPIC_V>(*it).end(); it2++)
         {
-            if (_mosquitto_topic_matches_sub((*it2).c_str(), topic, &match) == MOSQ_ERR_SUCCESS)
+            if (_mosquitto_topic_matches_sub((*it2).topic.c_str(), topic, &match) == MOSQ_ERR_SUCCESS)
             {
                 if (match)
                 {
@@ -411,6 +454,14 @@ void MQTTMediator::setOnSubscribeClientCB(IMClient *client, AsyncMqttClientInter
     }
     std::get<ENUM_USERCBS_ST>(*it).onSubscribeucb = callback;
 }
+/**
+ * @brief Set the callback function to be called when a client unsubscribes.
+ *
+ * @param client Pointer to the IMClient object.
+ * @param callback The callback function to be set.
+ *
+ * @return void
+ */
 void MQTTMediator::setOnUnsubscribeClientCB(IMClient *client, AsyncMqttClientInternals::OnUnsubscribeUserCallback callback)
 {
     if (client == nullptr)
@@ -422,7 +473,16 @@ void MQTTMediator::setOnUnsubscribeClientCB(IMClient *client, AsyncMqttClientInt
     }
     std::get<ENUM_USERCBS_ST>(*it).onUnsubscribeucb = callback;
 }
-
+/**
+ * @brief Set the onMessageucb callback function for a given client.
+ *
+ * This function sets the onMessageucb member variable of a tuple associated with a given client.
+ *
+ * @param client A pointer to an IMClient object.
+ * @param callback A function pointer to the OnMessageUserCallback function.
+ * 
+ * @return void
+ */
 void MQTTMediator::setOnMessageClientCB(IMClient *client, AsyncMqttClientInternals::OnMessageUserCallback callback)
 {
     if (client == nullptr)
@@ -434,6 +494,19 @@ void MQTTMediator::setOnMessageClientCB(IMClient *client, AsyncMqttClientInterna
     }
     std::get<ENUM_USERCBS_ST>(*it).onMessageucb = callback;
 }
+
+/**
+ * @brief Set the callback function to be called when a client publishes a message.
+ *
+ * This function sets the onPublishucb member variable of a tuple associated with a given client.
+ * If the client pointer is null, the function early returns.
+ * If the client is not found in the list of clients, a new empty client tuple is added and the callback is assigned.
+ *
+ * @param client A pointer to an IMClient object
+ * @param callback A function pointer to the OnPublishUserCallback function
+ * 
+ * @return None.
+ */
 void MQTTMediator::setOnPublishClientCB(IMClient *client, AsyncMqttClientInternals::OnPublishUserCallback callback)
 {
     if (client == nullptr)
@@ -446,6 +519,20 @@ void MQTTMediator::setOnPublishClientCB(IMClient *client, AsyncMqttClientInterna
     std::get<ENUM_USERCBS_ST>(*it).onPublishucb = callback;
 }
 
+/**
+ * @brief Set the OnErrorUserCallback for an IMClient.
+ *
+ * Sets the OnErrorUserCallback for the given IMClient. If the client pointer is null,
+ * the function early returns.
+ * If the client is not found in the list of clients, a new empty client tuple is added
+ * and the callback is assigned.
+
+ * @param client The IMClient pointer.
+ * @param callback The OnErrorUserCallback to set.
+ *
+ *
+ * @return None.
+ */
 void MQTTMediator::setOnErrorClientCB(IMClient *client, AsyncMqttClientInternals::OnErrorUserCallback callback)
 {
     if (client == nullptr)
@@ -458,6 +545,13 @@ void MQTTMediator::setOnErrorClientCB(IMClient *client, AsyncMqttClientInternals
     std::get<ENUM_USERCBS_ST>(*it).onErrorucb = callback;
 }
 
+/**
+ * Erases a client from the list of clients if it exists.
+ *
+ * @param client pointer to the client to be erased
+ *
+ * @return void
+ */
 void MQTTMediator::vanishClient(IMClient *client)
 {
     if (client == nullptr)
@@ -473,6 +567,7 @@ void MQTTMediator::vanishClient(IMClient *client)
         }
     }
 }
+
 
 uint16_t MQTTMediator::subscribe(IMClient *client, const String topic, uint8_t qos)
 {
@@ -490,56 +585,85 @@ uint16_t MQTTMediator::subscribe(IMClient *client, const String topic, uint8_t q
 
     if (it == _clients.end())
     {
-        _clients.emplace_front(std::make_tuple(client, std::vector<String>{topic}, std::vector<std::pair<uint16_t, uint32_t>>(), UserCBs{}));
+        
+        _clients.emplace_front(std::make_tuple(client, std::vector<TopicContainer>{TopicContainer{topic, qos}}, std::vector<std::pair<uint16_t, uint32_t>>(), UserCBs{}));
         it = _clients.begin();
     }
     else
     {
-        auto it2 = std::find_if(std::get<ENUM_TOPIC_V>(*it).begin(), std::get<ENUM_TOPIC_V>(*it).end(),
-                                [&, this](String existing_topic)
-                                { return this->_isTopicAdded(existing_topic, topic); });
+        auto it2 = std::get<ENUM_TOPIC_V>(*it).begin();
+        for( it2 = std::get<ENUM_TOPIC_V>(*it).begin(); it2 != std::get<ENUM_TOPIC_V>(*it).end(); it2++)
+        {
+            if (it2->topic == topic)
+            {
+                break;
+            }
+        }
 
         if (it2 == std::get<ENUM_TOPIC_V>(*it).end())
-        std::get<ENUM_TOPIC_V>(*it).emplace_back(topic);
+        std::get<ENUM_TOPIC_V>(*it).emplace_back(TopicContainer{topic, qos});
     }
+    _MQTTMEDI_PL(String(__FUNCTION__)+"subscribe: " + String(topic) + " qos: " + String(qos));
     uint16_t packet_id = AsyncMqttClient::subscribe(topic.c_str(), qos); //subscribe or resubcribe with qos
     if (packet_id && qos>0)
         std::get<ENUM_PACKETID_V>(*it).emplace_back(std::make_pair(packet_id, millis()));
     return packet_id;
 }
 
+/**
+ * Unsubscribes a client from a specific topic.
+ *
+ * @param client Pointer to the IMClient object to unsubscribe.
+ * @param topic The topic to unsubscribe from.
+ *
+ * @return The packet ID of the unsubscription if successful, 0 otherwise.
+ */
 uint16_t MQTTMediator::unsubscribe(IMClient *client, String topic)
 {
     if (topic == "" || client == nullptr)
         return 0;
     uint16_t packetid = 0;
-    std::forward_list<tuplecontainer>::iterator it;
-    for (it = _clients.begin(); it != _clients.end(); it++)
+    std::forward_list<tuplecontainer>::iterator clit= _clients.end();
+    unsigned int z = 0;
+    std::vector<TopicContainer>::iterator topicit;
+    for ( auto it1 = _clients.begin(); it1 != _clients.end(); it1++)
     {
-        if (_isClientExist(client, *it))
+        for ( std::vector<TopicContainer>::iterator it2 = std::get<ENUM_TOPIC_V>(*it1).begin(); it2 != std::get<ENUM_TOPIC_V>(*it1).end(); it2++)
         {
-            break;
+            if ((*it2).topic == topic)
+            {
+                if (_isClientExist(client, *it1))
+                { 
+                    clit = it1;
+                    topicit = it2;
+                }
+                z++;
+            }
         }
-    }
-    if (it == _clients.end())
-    {
-        return 0; // Client not found
     }
 
-    for (auto it2 = std::get<ENUM_TOPIC_V>(*it).begin(); it2 != std::get<ENUM_TOPIC_V>(*it).end(); it2++)
+    if (clit != _clients.end())
     {
-        if (*it2 == topic)
+        if(topicit != std::get<ENUM_TOPIC_V>(*clit).end())
         {
-            std::get<ENUM_TOPIC_V>(*it).erase(it2);
-            packetid = AsyncMqttClient::unsubscribe(topic.c_str());
-            if(packetid)
+            std::get<ENUM_TOPIC_V>(*clit).erase(topicit);
+            if(z==1)
             {
-            std::get<ENUM_PACKETID_V>(*it).emplace_back(std::make_pair(packetid, millis()));
+                _MQTTMEDI_PL(String(__FUNCTION__)+"unsubscribe: " + String(topic));
+                packetid = AsyncMqttClient::unsubscribe(topic.c_str());
+                if(packetid)std::get<ENUM_PACKETID_V>(*clit).emplace_back(std::make_pair(packetid, millis()));               
+                return packetid;
             }
-            break;
+            else
+            {
+               if (std::get<ENUM_USERCBS_ST>(*clit).onUnsubscribeucb)
+                {
+                    std::invoke(std::get<ENUM_USERCBS_ST>(*clit).onUnsubscribeucb, packetid);
+                } 
+            }
         }
     }
-    return packetid;
+    return 0;
 }
 bool MQTTMediator::connected()
 {

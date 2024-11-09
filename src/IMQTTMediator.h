@@ -22,9 +22,14 @@ struct UserCBs
     AsyncMqttClientInternals::OnPublishUserCallback onPublishucb;
     AsyncMqttClientInternals::OnErrorUserCallback onErrorucb;
 };
+struct TopicContainer
+{
+    String topic;
+    uint8_t qos;
+};
 
 #define PACKETCLEANINGPERIOD 30000UL
- typedef   std::tuple<IMClient*,std::vector<String>,std::vector<std::pair<uint16_t,uint32_t>>,UserCBs> tuplecontainer;
+ typedef   std::tuple<IMClient*,std::vector<TopicContainer>,std::vector<std::pair<uint16_t,uint32_t>>,UserCBs> tuplecontainer;
 
 
 class IMQTTMediator
@@ -67,4 +72,4 @@ public:
     virtual void setOnPublishClientCB(IMClient* client,  AsyncMqttClientInternals::OnPublishUserCallback callback)=0;
     virtual void setOnErrorClientCB(IMClient* client, AsyncMqttClientInternals::OnErrorUserCallback callback)=0;
 };
-#endif
+#endif /* IMQTTMEDIATOR_H */
