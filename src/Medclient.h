@@ -32,7 +32,7 @@ public:
     uint16_t unsubscribe(String topic);
     uint16_t publish(const char* topic, uint8_t qos, bool retain, const char* payload = nullptr, size_t length = 0, bool dup = false, uint16_t message_id = 0);
     void setMQTTMediator(IMQTTMediator *mediator);
-    bool connected(){return _mymediator->connected();};
+    bool connected();
 
 };
 #endif

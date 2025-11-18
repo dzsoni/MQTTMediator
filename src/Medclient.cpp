@@ -43,7 +43,11 @@ uint16_t MedClient::unsubscribe(String topic)
   if(mediator!=nullptr) _mymediator=mediator;
  }
 
-
+ bool MedClient::connected()
+ {
+     if(_mymediator != nullptr) return _mymediator->connected();
+     return false;
+ }
 
 void MedClient::setOnConnect(AsyncMqttClientInternals::OnConnectUserCallback callback) {
  if(_mymediator!=nullptr)
